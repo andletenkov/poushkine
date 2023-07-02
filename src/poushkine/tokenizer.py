@@ -1,20 +1,26 @@
-from pathlib import Path
-
-
 class Text2Vec:
     """Simple character-level text tokenizer."""
 
     def __init__(self) -> None:
         self.char_to_index = {}
         self.index_to_char = {}
+        self._vocab_size = 0
 
-    def fit(self, file_path: Path | str) -> None:
+    @property
+    def vocab_size(self) -> int:
+        """Return number of characters embedded in tokenizer.
+
+        :return: Integer.
+        """
+        return self._vocab_size
+
+    def fit(self, text: str) -> None:
         """Fits the tokenizer.
 
-        :param file_path: Path to a file with text.
+        :param text: Text data to fit the tokenizer.
         """
-        text = Path(file_path).read_text()
         chars = "".join(sorted(set(text)))
+        self._vocab_size = len(chars)
 
         for idx, char in enumerate(chars):
             self.char_to_index[char] = idx

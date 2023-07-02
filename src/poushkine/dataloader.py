@@ -31,11 +31,11 @@ class Dataloader:
         self._batch_size = batch_size
         self._context_length = context_length
 
-    def get_batch(self, split: SplitType) -> tuple[torch.Tensor, torch.Tensor]:
+    def get_batch(self, split: SplitType = "train") -> tuple[torch.Tensor, torch.Tensor]:
         """Provides randomly picked batch of data examples.
 
         :param split: Split type. (train/val).
-        :return: Tuple of feature and label tensors.
+        :return: Tuple of feature and target tensors.
         """
         data = self._data[split]
         idx = torch.randint(len(data) - self._context_length, (self._batch_size,))

@@ -1,11 +1,11 @@
-from typing import Literal, Type
+from typing import Type, get_args
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from poushkine.dataloader import Dataloader
+from poushkine.dataloader import Dataloader, SplitType
 
 
 class Trainer:
@@ -17,10 +17,10 @@ class Trainer:
         dataloader: Dataloader,
         optimizer_cls: Type[optim.Optimizer],
         device: torch.device = torch.device("cpu"),
-        learning_rate: float = 1e-3,
         max_iterations: int = 10000,
         eval_iterations: int = 200,
         eval_interval: int = 100,
+        **optimizer_params
     ) -> None:
         """Initializer.
 
@@ -33,17 +33,18 @@ class Trainer:
             max_iterations (int, optional): Number of optimizer steps to perform. Defaults to 10000.
             eval_iterations (int, optional): Number of model evaluations to estimate train/val loss. Defaults to 200.
             eval_interval (int, optional): Number of steps between every loss estimation. Defaults to 100.
+            optimizer_params: Any keyword arguments for the optimizer.
         """
         self._device = device
         self._model = model.to(self._device)
         self._dataloader = dataloader
-        self._optimizer = optimizer_cls(self._model.parameters(), lr=learning_rate)
+        self._optimizer = optimizer_cls(self._model.parameters(), **optimizer_params)
         self._max_iterations = max_iterations
         self._eval_iterations = eval_iterations
         self._eval_interval = eval_interval
 
     @torch.no_grad()
-    def _estimate_loss(self) -> dict[Literal["train", "val"], float]:
+    def _estimate_loss(self) -> dict[SplitType, float]:
         """Esimates mean training and validations losses.
 
         Returns:
@@ -52,7 +53,7 @@ class Trainer:
         loss_dict = {}
         self._model.eval()
         try:
-            for split in ["train", "val"]:
+            for split in get_args(SplitType):
                 losses = torch.zeros(self._eval_iterations)
                 for i in range(self._eval_iterations):
                     x, y = self._dataloader.get_batch(split, self._device)

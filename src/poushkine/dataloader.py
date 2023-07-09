@@ -24,10 +24,10 @@ class Dataloader:
         :param context_length: Block size to keep within the context
             (time dimension).
         """
-        data = torch.tensor(data, dtype=torch.long)
-        split = int(len(data) * train_size)
+        data_tensor = torch.tensor(data, dtype=torch.long)
+        split = int(len(data_tensor) * train_size)
 
-        self._data = {"train": data[:split], "val": data[split:]}
+        self._data = {"train": data_tensor[:split], "val": data_tensor[split:]}
         self._batch_size = batch_size
         self._context_length = context_length
 

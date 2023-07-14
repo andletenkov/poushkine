@@ -1,11 +1,11 @@
 from typing import Type, get_args
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
 from poushkine.dataloader import Dataloader, SplitType
+from poushkine.model import BigramModel
 
 
 class Trainer:
@@ -13,10 +13,9 @@ class Trainer:
 
     def __init__(
         self,
-        model: nn.Module,
+        model: BigramModel,
         dataloader: Dataloader,
         optimizer_cls: Type[optim.Optimizer],
-        device: torch.device = torch.device("cpu"),
         max_iterations: int = 10000,
         eval_iterations: int = 200,
         eval_interval: int = 100,
@@ -25,17 +24,16 @@ class Trainer:
         """Initializer.
 
         Args:
-            model (nn.Module): A model to train.
+            model (nn.Module): A custom bigram model to train.
             dataloader (Dataloader): Dataloader instance.
             optimizer_cls (Type[optim.Optimizer]): Optimizer class.
-            device (torch.device, optional): Torch device to which move the model and the data. Defaults to torch.device("cpu").
             learning_rate (float, optional): Learning rate to use for the optimizer. Defaults to 1e-3.
             max_iterations (int, optional): Number of optimizer steps to perform. Defaults to 10000.
             eval_iterations (int, optional): Number of model evaluations to estimate train/val loss. Defaults to 200.
             eval_interval (int, optional): Number of steps between every loss estimation. Defaults to 100.
             optimizer_params: Any keyword arguments for the optimizer.
         """
-        self._device = device
+        self._device = model.device
         self._model = model.to(self._device)
         self._dataloader = dataloader
         self._optimizer = optimizer_cls(self._model.parameters(), **optimizer_params)

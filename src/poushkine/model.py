@@ -3,6 +3,82 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from poushkine.attention import MultiHeadAttention
+
+
+class FeedForward(nn.Module):
+    """A simple linear layer followed by non-linear activation."""
+
+    def __init__(self, num_embed: int, dropout: float, *args, **kwargs) -> None:
+        """Initializer.
+
+        Args:
+            num_embed (int): Number of token embeddings.
+            dropout (float): Probability to zero an element of an input tensor.
+        """
+        super().__init__(*args, **kwargs)
+        self._ff = nn.Sequential(
+            nn.Linear(num_embed, num_embed * 4),
+            nn.ReLU(),
+            nn.Linear(num_embed * 4, num_embed),  # linear projection
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Feed forward pass.
+
+        Args:
+            x (Tensor): Input tensor.
+
+        Returns:
+            Tensor: Output tensor.
+        """
+        return self._ff(x)
+
+
+class TransformerBlock(nn.Module):
+    """A transformer block. Communication + computation."""
+
+    def __init__(
+        self,
+        num_embed: int,
+        block_size: int,
+        attention_num_heads: int,
+        dropout: float,
+        *args,
+        **kwargs
+    ) -> None:
+        """Initializer.
+
+        Args:
+            num_embed (int): Number of token embeddings.
+            block_size (int): Tokens block size (context length).
+            attention_num_heads (int): Number of self-attention heads to use in parallel.
+            dropout (float): Probability to zero an element of an input tensor.
+        """
+        super().__init__(*args, **kwargs)
+
+        self._attention = MultiHeadAttention(
+            attention_num_heads, num_embed, block_size, dropout
+        )
+        self._ff = FeedForward(num_embed, dropout)
+        self._ln1 = nn.LayerNorm(num_embed)
+        self._ln2 = nn.LayerNorm(num_embed)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """Block forward pass.
+
+        Args:
+            x (Tensor): Input tensor.
+
+        Returns:
+            Tensor: Output tensor.
+        """
+        # use residual connections
+        x = x + self._attention(self._ln1(x))
+        x = x + self._ff(self._ln2(x))
+        return x
+
 
 class BigramModel(nn.Module):
     """Simple language model predicting next most probable character."""
@@ -12,6 +88,9 @@ class BigramModel(nn.Module):
         vocab_size: int,
         block_size: int,
         num_embed: int,
+        attention_num_heads: int,
+        dropout: float,
+        num_blocks: int,
         device: torch.device,
         *args,
         **kwargs
@@ -19,10 +98,14 @@ class BigramModel(nn.Module):
         """Initializer.
 
         Args:
-            vocab_size (int):  Number of unique tokens to embed (0 dim).
-            block_size (int): Block size (context length) to embed token positions (0 dim).
-            num_embed (int): Number of embeddings for a single char (1 dim).
-            device (torch.device): Device to which model and its parameters should be moved during the training (cpu/cuda).
+            vocab_size (int):  Number of unique tokens the model is able to handle.
+            block_size (int): Tokens block size (context length).
+            num_embed (int): Number of embeddings for a single char.
+            attention_num_heads (int). Number of self-attention heads to use in parallel.
+            dropout (float): Probability to zero an element of an input tensor.
+            num_blocks (int): Number of transformer blocks.
+            device (torch.device): Device to which model and its parameters should be moved
+                during the training (cpu/cuda).
         """
         super().__init__(*args, **kwargs)
         self.device = device
@@ -30,6 +113,13 @@ class BigramModel(nn.Module):
         self._token_embedding = nn.Embedding(vocab_size, num_embed)
         self._position_embedding = nn.Embedding(block_size, num_embed)
         self._head = nn.Linear(num_embed, vocab_size)
+        self._blocks = nn.Sequential(
+            *[
+                TransformerBlock(num_embed, block_size, attention_num_heads, dropout)
+                for _ in range(num_blocks)
+            ],
+            nn.LayerNorm(num_embed),
+        )
 
     def forward(
         self, idx: Tensor, targets: Tensor | None = None
@@ -50,10 +140,9 @@ class BigramModel(nn.Module):
         token_emb = self._token_embedding(
             idx
         )  # shape: (batch size, context length, num embed)
-        head_input = token_emb + pos_emb
-        logits = self._head(
-            head_input
-        )  # shape: (batch size, context length, vocab size)
+        x = token_emb + pos_emb
+        x = self._blocks(x)
+        logits = self._head(x)  # shape: (batch size, context length, vocab size)
 
         if targets is None:
             return logits, None

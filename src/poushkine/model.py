@@ -134,12 +134,13 @@ class BigramModel(nn.Module):
         """
         _, ctx_len = idx.shape
 
-        pos_emb = self._position_embedding(
-            torch.arange(ctx_len, device=self.device)
-        )  # shape: (context length, num embed)
         token_emb = self._token_embedding(
             idx
         )  # shape: (batch size, context length, num embed)
+        pos_emb = self._position_embedding(
+            torch.arange(ctx_len, device=self.device)
+        )  # shape: (context length, num embed)
+       
         x = token_emb + pos_emb
         x = self._blocks(x)
         logits = self._head(x)  # shape: (batch size, context length, vocab size)
